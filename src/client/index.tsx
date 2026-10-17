@@ -16,6 +16,8 @@ function App() {
 	const [name] = useState(names[Math.floor(Math.random() * names.length)]);
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const { room } = useParams();
+	const [copied, setCopied] = useState(false);
+	const shareLink = window.location.href;
 
 	const socket = usePartySocket({
 		party: "chat",
@@ -78,6 +80,32 @@ function App() {
 					<div className="ten columns">{message.content}</div>
 				</div>
 			))}
+			<div className="row your-name">
+				You are chatting as <strong>{name}</strong>
+			</div>
+			<div className="row share-link">
+				<p>You can send this link to anyone whom you want to chat:</p>
+				<div className="row">
+					<input
+						type="text"
+						className="ten columns share-link-input"
+						value={shareLink}
+						readOnly
+						onFocus={(e) => e.currentTarget.select()}
+					/>
+					<button
+						type="button"
+						className="two columns copy-link"
+						onClick={async () => {
+							await navigator.clipboard.writeText(shareLink);
+							setCopied(true);
+							setTimeout(() => setCopied(false), 2000);
+						}}
+					>
+						{copied ? "Copied!" : "Copy"}
+					</button>
+				</div>
+			</div>
 			<form
 				className="row"
 				onSubmit={(e) => {

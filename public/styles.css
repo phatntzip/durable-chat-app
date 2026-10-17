@@ -42,6 +42,24 @@ html {
 	border: "none";
 }
 
+.your-name {
+	margin-top: 10px;
+	font-size: 1.8rem;
+}
+
+.share-link {
+	margin-top: 10px;
+}
+
+.share-link p {
+	margin-bottom: 5px;
+	color: #555;
+}
+
+.copy-link {
+	padding: 0;
+}
+
 .send-message {
 	padding: 0;
 }
