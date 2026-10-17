@@ -42,6 +42,20 @@ html {
 	border: "none";
 }
 
+.room-list ul {
+	max-height: 150px;
+	overflow-y: auto;
+	margin-bottom: 10px;
+}
+
+.room-list li.current a {
+	font-weight: bold;
+}
+
+.room-users {
+	color: #777;
+}
+
 .your-name {
 	margin-top: 10px;
 	font-size: 1.8rem;

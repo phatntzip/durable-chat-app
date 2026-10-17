@@ -25,6 +25,12 @@ export type Message =
 			messages: ChatMessage[];
 	  };
 
+export type RoomInfo = {
+	id: string;
+	users: number;
+	lastActive: number;
+};
+
 export const names = [
 	"Alice",
 	"Bob",

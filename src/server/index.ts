@@ -1,3 +1,4 @@
+import { DurableObject } from "cloudflare:workers";
 import {
 	type Connection,
 	Server,
@@ -5,7 +6,39 @@ import {
 	routePartykitRequest,
 } from "partyserver";
 
-import type { ChatMessage, Message } from "../shared";
+import type { ChatMessage, Message, RoomInfo } from "../shared";
+
+// keeps track of every chat room and how many users are connected to it,
+// because Durable Objects can't be enumerated from the outside
+export class Registry extends DurableObject<Env> {
+	constructor(ctx: DurableObjectState, env: Env) {
+		super(ctx, env);
+		this.ctx.storage.sql.exec(
+			`CREATE TABLE IF NOT EXISTS rooms (id TEXT PRIMARY KEY, users INTEGER NOT NULL, last_active INTEGER NOT NULL)`,
+		);
+	}
+
+	report(room: string, users: number) {
+		this.ctx.storage.sql.exec(
+			`INSERT INTO rooms (id, users, last_active) VALUES (?, ?, ?)
+			 ON CONFLICT (id) DO UPDATE SET users = ?, last_active = ?`,
+			room,
+			users,
+			Date.now(),
+			users,
+			Date.now(),
+		);
+	}
+
+	list() {
+		return this.ctx.storage.sql
+			.exec(
+				`SELECT id, users, last_active AS lastActive FROM rooms
+				 ORDER BY users DESC, last_active DESC LIMIT 100`,
+			)
+			.toArray() as RoomInfo[];
+	}
+}
 
 export class Chat extends Server<Env> {
 	static options = { hibernate: true };
@@ -31,13 +64,30 @@ export class Chat extends Server<Env> {
 			.toArray() as ChatMessage[];
 	}
 
-	onConnect(connection: Connection) {
+	async reportUsers(excluding?: string) {
+		const users = [...this.getConnections()].filter(
+			(c) => c.id !== excluding,
+		).length;
+		try {
+			await this.env.Registry.getByName("global").report(this.name, users);
+		} catch (e) {
+			// the room list is best-effort, never break the chat because of it
+			console.error("failed to report room to registry", e);
+		}
+	}
+
+	async onConnect(connection: Connection) {
 		connection.send(
 			JSON.stringify({
 				type: "all",
 				messages: this.messages,
 			} satisfies Message),
 		);
+		await this.reportUsers();
+	}
+
+	async onClose(connection: Connection) {
+		await this.reportUsers(connection.id);
 	}
 
 	saveMessage(message: ChatMessage) {
@@ -80,6 +130,9 @@ export class Chat extends Server<Env> {
 
 export default {
 	async fetch(request, env) {
+		if (new URL(request.url).pathname === "/api/rooms") {
+			return Response.json(await env.Registry.getByName("global").list());
+		}
 		return (
 			(await routePartykitRequest(request, { ...env })) ||
 			env.ASSETS.fetch(request)
