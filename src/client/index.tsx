@@ -1,16 +1,62 @@
 import { createRoot } from "react-dom/client";
 import { usePartySocket } from "partysocket/react";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
 	BrowserRouter,
 	Routes,
 	Route,
+	Link,
 	Navigate,
 	useParams,
 } from "react-router";
 import { nanoid } from "nanoid";
 
-import { names, type ChatMessage, type Message } from "../shared";
+import {
+	names,
+	type ChatMessage,
+	type Message,
+	type RoomInfo,
+} from "../shared";
+
+function RoomList({ current }: { current?: string }) {
+	const [rooms, setRooms] = useState<RoomInfo[]>([]);
+
+	useEffect(() => {
+		let cancelled = false;
+		const load = async () => {
+			try {
+				const res = await fetch("/api/rooms");
+				if (res.ok && !cancelled) setRooms(await res.json());
+			} catch {
+				// keep showing the last known list
+			}
+		};
+		load();
+		const timer = setInterval(load, 5000);
+		return () => {
+			cancelled = true;
+			clearInterval(timer);
+		};
+	}, []);
+
+	return (
+		<div className="row room-list">
+			<p>All rooms ({rooms.length})</p>
+			<ul>
+				{rooms.map((room) => (
+					<li key={room.id} className={room.id === current ? "current" : ""}>
+						<Link to={`/${room.id}`}>{room.id}</Link>{" "}
+						<span className="room-users">
+							{room.users > 0
+								? `${room.users} online`
+								: `idle, last active ${new Date(room.lastActive).toLocaleString()}`}
+						</span>
+					</li>
+				))}
+			</ul>
+		</div>
+	);
+}
 
 function App() {
 	const [name] = useState(names[Math.floor(Math.random() * names.length)]);
@@ -18,6 +64,9 @@ function App() {
 	const { room } = useParams();
 	const [copied, setCopied] = useState(false);
 	const shareLink = window.location.href;
+
+	// switching rooms: drop the previous room's messages until the new history arrives
+	useEffect(() => setMessages([]), [room]);
 
 	const socket = usePartySocket({
 		party: "chat",
@@ -74,6 +123,7 @@ function App() {
 
 	return (
 		<div className="chat container">
+			<RoomList current={room} />
 			{messages.map((message) => (
 				<div key={message.id} className="row message">
 					<div className="two columns user">{message.user}</div>
